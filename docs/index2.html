@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Link Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f8fafc;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .link-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .link-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-slate-800 mb-2">Nexus</h1>
+            <p class="text-slate-600">List of links in this repository.</p>
+        </header>
+
+        <!-- Input Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" id="linkTitle" placeholder="Link Title (e.g. Google)" 
+                    class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <input type="url" id="linkUrl" placeholder="URL (https://...)" 
+                    class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <button onclick="addLink()" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-200">
+                    Add Link
+                </button>
+            </div>
+            <p id="errorMessage" class="text-red-500 text-sm mt-2 hidden">Please enter a valid title and URL.</p>
+        </div>
+
+        <!-- Search and Filter -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h2 class="text-xl font-semibold text-slate-700">Saved Links</h2>
+            <input type="text" id="searchBar" onkeyup="filterLinks()" placeholder="Search your links..." 
+                class="w-full md:w-64 px-4 py-2 rounded-full border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+        </div>
+
+        <!-- Links Grid -->
+        <div id="linksGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Links will appear here -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-20 text-slate-400">
+            <svg class="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="LinkIcon" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+            </svg>
+            <p>No links saved yet. Add one above to get started!</p>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let links = [];
+
+        // Load data on start
+        window.onload = () => {
+            const saved = localStorage.getItem('my_link_hub_data');
+            if (saved) {
+                links = JSON.parse(saved);
+                renderLinks();
+            }
+        };
+
+        function addLink() {
+            const titleInput = document.getElementById('linkTitle');
+            const urlInput = document.getElementById('linkUrl');
+            const error = document.getElementById('errorMessage');
+
+            let url = urlInput.value.trim();
+            const title = titleInput.value.trim();
+
+            if (!title || !url) {
+                error.classList.remove('hidden');
+                return;
+            }
+
+            // Basic URL formatting
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+
+            const newLink = {
+                id: Date.now(),
+                title: title,
+                url: url,
+                date: new Date().toLocaleDateString()
+            };
+
+            links.unshift(newLink);
+            saveAndRender();
+            
+            // Clear inputs
+            titleInput.value = '';
+            urlInput.value = '';
+            error.classList.add('hidden');
+        }
+
+        function deleteLink(id) {
+            links = links.filter(link => link.id !== id);
+            saveAndRender();
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('my_link_hub_data', JSON.stringify(links));
+            renderLinks();
+        }
+
+        function renderLinks(filter = '') {
+            const grid = document.getElementById('linksGrid');
+            const empty = document.getElementById('emptyState');
+            grid.innerHTML = '';
+
+            const filteredLinks = links.filter(link => 
+                link.title.toLowerCase().includes(filter.toLowerCase()) || 
+                link.url.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (filteredLinks.length === 0) {
+                empty.classList.remove('hidden');
+            } else {
+                empty.classList.add('hidden');
+                filteredLinks.forEach(link => {
+                    const card = document.createElement('div');
+                    card.className = 'link-card bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between';
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="font-bold text-slate-800 truncate pr-2" title="${link.title}">${link.title}</h3>
+                                <button onclick="deleteLink(${link.id})" class="text-slate-400 hover:text-red-500 transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                            <p class="text-xs text-blue-500 truncate mb-4">${link.url}</p>
+                        </div>
+                        <a href="${link.url}" target="_blank" rel="noopener noreferrer" 
+                           class="inline-block text-center w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition">
+                           Visit Site
+                        </a>
+                    `;
+                    grid.appendChild(card);
+                });
+            }
+        }
+
+        function filterLinks() {
+            const query = document.getElementById('searchBar').value;
+            renderLinks(query);
+        }
+    </script>
+</body>
+</html>
