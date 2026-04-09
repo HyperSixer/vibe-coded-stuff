@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Import Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=IBM+Plex+Serif:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Courier+Prime&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #fcfcfc;
+            --text-color: #1a1a1a;
+            --control-bg: rgba(0, 0, 0, 0.05);
+            --dropdown-bg: #ffffff;
+            --dropdown-border: #eee;
+            --dropdown-hover: #f5f5f5;
+        }
+
+        /* Set defaults to dark mode variables */
+        body.dark-mode {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --control-bg: rgba(255, 255, 255, 0.1);
+            --dropdown-bg: #1e1e1e;
+            --dropdown-border: #333;
+            --dropdown-hover: #2a2a2a;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+
+        .zen-container {
+            width: 100%;
+            height: 100%;
+            padding: 10vh 15vw;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        #editor {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: inherit;
+            resize: none;
+            font-size: 1.25rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        #preview {
+            width: 100%;
+            font-size: 1.25rem;
+            line-height: 1.8;
+            display: none;
+            word-wrap: break-word;
+        }
+
+        /* Markdown Styling Fixes */
+        #preview h1 { font-size: 2.25rem; font-weight: 700; margin: 1.5rem 0 1rem; line-height: 1.2; }
+        #preview h2 { font-size: 1.75rem; font-weight: 600; margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--control-bg); padding-bottom: 0.3rem; }
+        #preview h3 { font-size: 1.5rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+        
+        #preview p { margin-bottom: 1.5rem; display: block; }
+        #preview ul { list-style-type: disc; margin: 0 0 1.5rem 0; padding-left: 2rem; display: block; }
+        #preview ol { list-style-type: decimal; margin: 0 0 1.5rem 0; padding-left: 2rem; display: block; }
+        
+        #preview li { margin-bottom: 0.5rem; }
+        #preview li > p { margin-bottom: 0; display: inline; } 
+        
+        #preview strong { font-weight: 700; }
+        #preview em { font-style: italic; }
+        #preview blockquote { border-left: 4px solid var(--control-bg); padding-left: 1rem; font-style: italic; opacity: 0.8; margin: 1.5rem 0; color: #666; }
+        body.dark-mode #preview blockquote { color: #aaa; }
+        #preview code { font-family: 'Courier Prime', monospace; background: var(--control-bg); padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; }
+        #preview pre { background: var(--control-bg); padding: 1rem; border-radius: 8px; overflow-x: auto; margin-bottom: 1.5rem; }
+        #preview hr { border: 0; border-top: 1px solid var(--control-bg); margin: 2rem 0; }
+
+        .controls {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            opacity: 0.05;
+            transition: opacity 0.5s ease;
+            z-index: 100;
+        }
+
+        .controls:hover { opacity: 1; }
+
+        .control-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.6rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-color);
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .control-btn:hover { background: var(--control-bg); }
+        .control-btn.active { color: #3b82f6; opacity: 1; }
+
+        .dropdown { position: relative; }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background-color: var(--dropdown-bg);
+            min-width: 180px;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+            border: 1px solid var(--dropdown-border);
+        }
+
+        .dropdown-content button {
+            color: var(--text-color);
+            padding: 12px 16px;
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .dropdown-content button:hover { background-color: var(--dropdown-hover); }
+        .show { display: block; }
+
+        /* Font Families */
+        .font-arial { font-family: Arial, sans-serif; }
+        .font-times { font-family: 'Times New Roman', Times, serif; }
+        .font-garamond { font-family: 'EB Garamond', serif; }
+        .font-ibm { font-family: 'IBM Plex Serif', serif; }
+        .font-courier { font-family: 'Courier Prime', 'Courier New', monospace; }
+        .font-papyrus { font-family: 'Papyrus', 'Fantasy', serif; }
+        .font-comicsans { font-family: 'Comic Sans MS', 'Comic Sans', cursive; }
+        .font-wingdings { font-family: 'Wingdings', 'Zapf Dingbats', symbol; }
+
+        svg { width: 18px; height: 18px; }
+        
+        #themeIcon .sun { display: none; }
+        #themeIcon .moon { display: block; }
+        body.dark-mode #themeIcon .sun { display: block; }
+        body.dark-mode #themeIcon .moon { display: none; }
+    </style>
+</head>
+<body class="font-garamond dark-mode">
+
+    <div class="zen-container">
+        <textarea id="editor" spellcheck="false" placeholder="Start writing..."></textarea>
+        <div id="preview"></div>
+    </div>
+
+    <div class="controls">
+        <button id="viewToggle" class="control-btn" title="Toggle Preview Mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+        </button>
+
+        <button id="themeToggle" class="control-btn" title="Toggle Dark Mode">
+            <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path class="moon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                <circle class="sun" cx="12" cy="12" r="5"></circle>
+                <line class="sun" x1="12" y1="1" x2="12" y2="3"></line>
+                <line class="sun" x1="12" y1="21" x2="12" y2="23"></line>
+                <line class="sun" x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line class="sun" x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line class="sun" x1="1" y1="12" x2="3" y2="12"></line>
+                <line class="sun" x1="21" y1="12" x2="23" y2="12"></line>
+                <line class="sun" x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line class="sun" x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+        </button>
+
+        <button id="rainToggle" class="control-btn" title="Toggle Rain Sound">
+            <svg id="audioIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.5 19L19 21M11 19l1.5 2m-8-2l1.5 2M20 11a8.1 8.1 0 0 0-15.5-2m-.5 10v-1.7a4 4 0 0 1 1-2.5l2-2.3a4 4 0 0 1 3-1.2h2a4 4 0 0 1 3 1.2l2 2.3a4 4 0 0 1 1 2.5V19"></path>
+            </svg>
+        </button>
+
+        <div class="dropdown">
+            <button id="fontMenuBtn" class="control-btn" title="Change Font">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </button>
+            <div id="fontDropdown" class="dropdown-content">
+                <button onclick="changeFont('font-arial')">Arial</button>
+                <button onclick="changeFont('font-times')">Times New Roman</button>
+                <button onclick="changeFont('font-garamond')">EB Garamond</button>
+                <button onclick="changeFont('font-ibm')">IBM Plex Serif</button>
+                <button onclick="changeFont('font-courier')">Courier New</button>
+                <button onclick="changeFont('font-papyrus')">Papyrus</button>
+                <button onclick="changeFont('font-comicsans')">Comic Sans MS</button>
+                <button onclick="changeFont('font-wingdings')">Wingdings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dual Audio for Seamless Looping -->
+    <audio id="rainA" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2513/2513-preview.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="rainB" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2513/2513-preview.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const rainA = document.getElementById('rainA');
+        const rainB = document.getElementById('rainB');
+        const rainToggle = document.getElementById('rainToggle');
+        const themeToggle = document.getElementById('themeToggle');
+        const viewToggle = document.getElementById('viewToggle');
+        const fontMenuBtn = document.getElementById('fontMenuBtn');
+        const fontDropdown = document.getElementById('fontDropdown');
+        const audioIcon = document.getElementById('audioIcon');
+
+        if (typeof marked !== 'undefined') {
+            marked.use({
+                gfm: true,
+                breaks: true, 
+                pedantic: false,
+                smartLists: true,
+            });
+        }
+
+        let isAudioPlaying = false;
+        let isPreviewMode = false;
+        const TARGET_VOLUME = 0.3;
+        const CROSSFADE_TIME = 2000; 
+        
+        rainA.volume = 0;
+        rainB.volume = 0;
+
+        let activePlayer = rainA;
+        let inactivePlayer = rainB;
+        let transitionInProgress = false;
+
+        function crossfade() {
+            if (!isAudioPlaying || transitionInProgress) return;
+            if (activePlayer.duration && activePlayer.currentTime > activePlayer.duration - 3) {
+                transitionInProgress = true;
+                inactivePlayer.currentTime = 0;
+                inactivePlayer.play().catch(e => console.log("Autoplay blocked"));
+                let start = null;
+                function step(timestamp) {
+                    if (!start) start = timestamp;
+                    const progress = timestamp - start;
+                    const ratio = Math.min(progress / CROSSFADE_TIME, 1);
+                    activePlayer.volume = TARGET_VOLUME * (1 - ratio);
+                    inactivePlayer.volume = TARGET_VOLUME * ratio;
+                    if (ratio < 1) requestAnimationFrame(step);
+                    else {
+                        activePlayer.pause();
+                        const temp = activePlayer;
+                        activePlayer = inactivePlayer;
+                        inactivePlayer = temp;
+                        transitionInProgress = false;
+                    }
+                }
+                requestAnimationFrame(step);
+            }
+        }
+
+        function audioLoop() {
+            if (isAudioPlaying) {
+                crossfade();
+                requestAnimationFrame(audioLoop);
+            }
+        }
+
+        rainToggle.addEventListener('click', () => {
+            if (isAudioPlaying) {
+                isAudioPlaying = false;
+                rainA.pause(); rainB.pause();
+                audioIcon.style.opacity = "0.4";
+            } else {
+                isAudioPlaying = true;
+                activePlayer.volume = TARGET_VOLUME;
+                activePlayer.play().then(() => {
+                    audioIcon.style.opacity = "1";
+                    audioLoop();
+                });
+            }
+        });
+
+        viewToggle.addEventListener('click', () => {
+            isPreviewMode = !isPreviewMode;
+            if (isPreviewMode) {
+                let content = editor.value || "*Start writing...*";
+                // Pre-process for list indentation fix
+                content = content.replace(/^([ \t]*[-*+] .*)[\r\n](?![ \t]*[-*+ \d])/gm, '$1\n\n');
+
+                try {
+                    preview.innerHTML = marked.parse(content);
+                } catch (e) {
+                    preview.innerText = content;
+                }
+                
+                editor.style.display = 'none';
+                preview.style.display = 'block';
+                viewToggle.classList.add('active');
+            } else {
+                editor.style.display = 'block';
+                preview.style.display = 'none';
+                viewToggle.classList.remove('active');
+                editor.focus();
+            }
+        });
+
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('zen-writer-theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+        });
+
+        fontMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fontDropdown.classList.toggle('show');
+        });
+
+        window.addEventListener('click', () => fontDropdown.classList.remove('show'));
+
+        function changeFont(fontClass) {
+            const classes = ['font-arial', 'font-times', 'font-garamond', 'font-ibm', 'font-courier', 'font-papyrus', 'font-comicsans', 'font-wingdings'];
+            document.body.classList.remove(...classes);
+            document.body.classList.add(fontClass);
+            localStorage.setItem('zen-writer-font', fontClass);
+        }
+
+        editor.addEventListener('input', () => {
+            localStorage.setItem('zen-writer-content', editor.value);
+        });
+
+        window.onload = () => {
+            const savedText = localStorage.getItem('zen-writer-content');
+            if (savedText) editor.value = savedText;
+            
+            const savedFont = localStorage.getItem('zen-writer-font');
+            if (savedFont) changeFont(savedFont);
+            
+            const savedTheme = localStorage.getItem('zen-writer-theme');
+            if (savedTheme === 'light') {
+                document.body.classList.remove('dark-mode');
+            } else {
+                document.body.classList.add('dark-mode');
+            }
+            
+            audioIcon.style.opacity = "0.4";
+            editor.focus();
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!isPreviewMode && !e.target.closest('.controls')) {
+                editor.focus();
+            }
+        });
+    </script>
+</body>
+</html>
