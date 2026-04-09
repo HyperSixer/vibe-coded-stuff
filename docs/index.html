@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Link Hub</title>
+    <title>Nexus</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -16,6 +16,15 @@
         .link-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .permanent-badge {
+            background: #e0f2fe;
+            color: #0369a1;
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
         }
     </style>
 </head>
@@ -55,26 +64,32 @@
             <!-- Links will appear here -->
         </div>
 
-        <!-- Empty State -->
-        <div id="emptyState" class="text-center py-20 text-slate-400">
-            <svg class="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="LinkIcon" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
-            </svg>
-            <p>No links saved yet. Add one above to get started!</p>
+        <!-- Empty State (Hidden if hardcoded links exist) -->
+        <div id="emptyState" class="text-center py-20 text-slate-400 hidden">
+            <p>No links found.</p>
         </div>
     </div>
 
     <script>
-        // State management
-        let links = [];
+        // PERMANENT LINKS (Hardcoded)
+        const permanentLinks = [
+            {
+                id: 'perm-1',
+                title: 'Pong v1',
+                url: 'https://hypersixer.github.io/vibe-coded-stuff/pong-v1.html',
+                isPermanent: true
+            }
+        ];
 
-        // Load data on start
+        // USER LINKS (From LocalStorage)
+        let userLinks = [];
+
         window.onload = () => {
             const saved = localStorage.getItem('my_link_hub_data');
             if (saved) {
-                links = JSON.parse(saved);
-                renderLinks();
+                userLinks = JSON.parse(saved);
             }
+            renderLinks();
         };
 
         function addLink() {
@@ -90,7 +105,6 @@
                 return;
             }
 
-            // Basic URL formatting
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
                 url = 'https://' + url;
             }
@@ -99,25 +113,24 @@
                 id: Date.now(),
                 title: title,
                 url: url,
-                date: new Date().toLocaleDateString()
+                isPermanent: false
             };
 
-            links.unshift(newLink);
+            userLinks.unshift(newLink);
             saveAndRender();
             
-            // Clear inputs
             titleInput.value = '';
             urlInput.value = '';
             error.classList.add('hidden');
         }
 
         function deleteLink(id) {
-            links = links.filter(link => link.id !== id);
+            userLinks = userLinks.filter(link => link.id !== id);
             saveAndRender();
         }
 
         function saveAndRender() {
-            localStorage.setItem('my_link_hub_data', JSON.stringify(links));
+            localStorage.setItem('my_link_hub_data', JSON.stringify(userLinks));
             renderLinks();
         }
 
@@ -126,7 +139,10 @@
             const empty = document.getElementById('emptyState');
             grid.innerHTML = '';
 
-            const filteredLinks = links.filter(link => 
+            // Combine both sets of links
+            const allLinks = [...permanentLinks, ...userLinks];
+
+            const filteredLinks = allLinks.filter(link => 
                 link.title.toLowerCase().includes(filter.toLowerCase()) || 
                 link.url.toLowerCase().includes(filter.toLowerCase())
             );
@@ -137,19 +153,24 @@
                 empty.classList.add('hidden');
                 filteredLinks.forEach(link => {
                     const card = document.createElement('div');
-                    card.className = 'link-card bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between';
+                    card.className = `link-card bg-white p-5 rounded-xl border ${link.isPermanent ? 'border-blue-200' : 'border-slate-200'} flex flex-col justify-between`;
+                    
+                    const deleteBtn = link.isPermanent 
+                        ? `<span class="permanent-badge">Core</span>` 
+                        : `<button onclick="deleteLink(${link.id})" class="text-slate-400 hover:text-red-500 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                           </button>`;
+
                     card.innerHTML = `
                         <div>
                             <div class="flex justify-between items-start mb-2">
                                 <h3 class="font-bold text-slate-800 truncate pr-2" title="${link.title}">${link.title}</h3>
-                                <button onclick="deleteLink(${link.id})" class="text-slate-400 hover:text-red-500 transition">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
+                                ${deleteBtn}
                             </div>
                             <p class="text-xs text-blue-500 truncate mb-4">${link.url}</p>
                         </div>
                         <a href="${link.url}" target="_blank" rel="noopener noreferrer" 
-                           class="inline-block text-center w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition">
+                           class="inline-block text-center w-full py-2 ${link.isPermanent ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'} text-sm font-medium rounded-lg transition">
                            Visit Site
                         </a>
                     `;
