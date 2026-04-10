@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Brick Breaker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow-x: hidden;
+            background-color: #0f172a;
+            font-family: system-ui, -apple-system, sans-serif;
+            touch-action: none;
+            transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        canvas {
+            display: block;
+            touch-action: none;
+            cursor: none;
+        }
+        .ui-overlay {
+            pointer-events: none;
+            user-select: none;
+        }
+        .key-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        #optionsMenu::-webkit-scrollbar {
+            width: 6px;
+        }
+        #optionsMenu::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-start min-h-screen py-8 px-4">
+
+    <div id="game-container" class="relative bg-slate-900 shadow-2xl rounded-lg overflow-hidden border border-slate-700 mb-8 transition-all duration-500">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="ui-overlay absolute top-0 left-0 w-full p-4 flex justify-between items-center text-white text-lg font-bold">
+            <div id="scoreDisplay" class="drop-shadow-md">Score: 0</div>
+            <div id="livesDisplay" class="drop-shadow-md">Lives: 3</div>
+        </div>
+
+        <div id="menuOverlay" class="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm transition-opacity duration-300">
+            <div id="mainMenu" class="text-center p-8 bg-slate-800 rounded-xl border border-slate-600 shadow-2xl min-w-[320px] transition-colors duration-300">
+                <h1 id="menuTitle" class="text-4xl font-black text-white mb-2 uppercase tracking-tighter">Brick Breaker</h1>
+                <div id="pauseIndicator" class="hidden mb-6 py-1 px-3 bg-amber-500/20 text-amber-400 rounded-md text-sm font-mono tracking-widest uppercase text-center">Paused</div>
+                <div id="launchIndicator" class="hidden mb-6 py-1 px-3 bg-indigo-500/20 text-indigo-400 rounded-md text-sm font-mono tracking-widest uppercase text-center">Click or Press Key to Launch</div>
+                <p id="menuText" class="text-slate-400 mb-6 font-medium">Pitifully buggy, music doesn't work, and changing appearances changes the ball speed.<br>Vibe coding is possibly not all that great.</p>
+                
+                <div class="flex flex-col gap-3">
+                    <button id="startBtn" class="pointer-events-auto px-10 py-4 bg-black hover:bg-zinc-900 text-white font-bold rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-black/40">
+                        START GAME
+                    </button>
+                    <button id="optionsBtn" class="pointer-events-auto px-10 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-full transition-all">
+                        OPTIONS
+                    </button>
+                </div>
+            </div>
+
+            <div id="optionsMenu" class="hidden text-left p-8 bg-slate-800 rounded-xl border border-slate-600 shadow-2xl w-[90%] max-w-md overflow-y-auto max-h-[90%] transition-colors duration-300">
+                <h2 class="text-2xl font-bold text-white mb-6 border-b border-slate-700 pb-2">Options</h2>
+                
+                <div class="mb-6">
+                    <h3 class="text-indigo-400 text-xs font-bold uppercase tracking-wider mb-3">Keybinds (Click to set)</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between text-slate-300 text-sm">
+                            <span>Move Left</span>
+                            <button id="keyLeft" class="key-input bg-slate-900 px-4 py-1 rounded border border-slate-600 min-w-[80px]">Left</button>
+                        </div>
+                        <div class="flex items-center justify-between text-slate-300 text-sm">
+                            <span>Move Right</span>
+                            <button id="keyRight" class="key-input bg-slate-900 px-4 py-1 rounded border border-slate-600 min-w-[80px]">Right</button>
+                        </div>
+                        <div class="flex items-center justify-between text-slate-300 text-sm">
+                            <span>Pause Game</span>
+                            <button id="keyPause" class="key-input bg-slate-900 px-4 py-1 rounded border border-slate-600 min-w-[80px]">P</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-indigo-400 text-xs font-bold uppercase tracking-wider mb-3">Ball Speed Multiplier (<span id="speedVal">1.0</span>x)</h3>
+                    <input type="range" id="speedSlider" min="0.5" max="2.5" step="0.1" value="1.0" class="w-full h-2 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                    <p class="text-[10px] text-slate-500 mt-2">* Speed multiplier activates after first paddle hit.</p>
+                </div>
+
+                <div class="mb-8">
+                    <h3 class="text-indigo-400 text-xs font-bold uppercase tracking-wider mb-3">Appearance</h3>
+                    <div class="grid grid-cols-2 gap-2" id="themeGrid">
+                        <button data-theme="futuristic" class="theme-btn py-2 rounded text-[10px] font-bold border transition-all">FUTURISTIC</button>
+                        <button data-theme="monochrome" class="theme-btn py-2 rounded text-[10px] font-bold border transition-all">MONOCHROME</button>
+                        <button data-theme="retro" class="theme-btn py-2 rounded text-[10px] font-bold border transition-all">RETRO</button>
+                        <button data-theme="neon" class="theme-btn py-2 rounded text-[10px] font-bold border transition-all">NEON</button>
+                        <button data-theme="steel" class="theme-btn py-2 rounded text-[10px] font-bold border transition-all">STEEL</button>
+                        <button data-theme="space" class="theme-btn py-2 rounded text-[10px] font-bold border transition-all">SPACE</button>
+                    </div>
+                </div>
+
+                <button id="backBtn" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-all">
+                    BACK TO MENU
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="instructions" class="w-full max-w-2xl grid grid-cols-1 md:grid-cols-3 gap-4 text-slate-400 text-sm">
+        <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col items-center text-center">
+            <div class="text-indigo-400 font-bold mb-1">MOUSE / TOUCH</div>
+            <p>Move horizontally to control the paddle position.</p>
+        </div>
+        <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col items-center text-center">
+            <div class="text-indigo-400 font-bold mb-1">KEYBOARD</div>
+            <p>Use custom keys set in options to move.</p>
+        </div>
+        <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col items-center text-center">
+            <div class="text-indigo-400 font-bold mb-1">PAUSE</div>
+            <p>Press the custom pause key at any time.</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const menuOverlay = document.getElementById('menuOverlay');
+        const mainMenu = document.getElementById('mainMenu');
+        const optionsMenu = document.getElementById('optionsMenu');
+        const menuTitle = document.getElementById('menuTitle');
+        const menuText = document.getElementById('menuText');
+        const startBtn = document.getElementById('startBtn');
+        const optionsBtn = document.getElementById('optionsBtn');
+        const backBtn = document.getElementById('backBtn');
+        const pauseIndicator = document.getElementById('pauseIndicator');
+        const launchIndicator = document.getElementById('launchIndicator');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const livesDisplay = document.getElementById('livesDisplay');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValDisplay = document.getElementById('speedVal');
+        const keyLeftBtn = document.getElementById('keyLeft');
+        const keyRightBtn = document.getElementById('keyRight');
+        const keyPauseBtn = document.getElementById('keyPause');
+        const themeBtns = document.querySelectorAll('.theme-btn');
+
+        // State
+        let score = 0;
+        let lives = 3;
+        let gameRunning = false;
+        let isPaused = false;
+        let waitingToLaunch = false;
+        let animationFrameId;
+        let audioCtx;
+        let isAudioInited = false;
+        let bgMusic = new Audio();
+        bgMusic.loop = true;
+
+        let settings = {
+            keys: { left: 'ArrowLeft', right: 'ArrowRight', pause: 'p' },
+            speedMult: 1.0,
+            theme: 'futuristic'
+        };
+
+        const themeConfigs = {
+            futuristic: { 
+                bg: '#0f172a', container: 'bg-slate-900', border: 'border-slate-700', 
+                menu: 'bg-slate-800', menuBorder: 'border-slate-600',
+                ball: '#6366f1', glow: 10, paddle: '#f8fafc',
+                getBrick: (r) => `hsl(${220 + (r * 20)}, 70%, 60%)`,
+                soundType: 'sine', hitFreq: 600, failFreq: 150,
+                music: 'WELCOME TO THE CITY.mp3'
+            },
+            monochrome: { 
+                bg: '#000000', container: 'bg-black', border: 'border-white', 
+                menu: 'bg-zinc-900', menuBorder: 'border-zinc-700',
+                ball: '#FFFFFF', glow: 0, paddle: '#FFFFFF',
+                getBrick: () => '#FFFFFF',
+                soundType: 'triangle', hitFreq: 400, failFreq: 100,
+                music: 'Darkness Falls.mp3'
+            },
+            retro: { 
+                bg: '#2c1810', container: 'bg-orange-950', border: 'border-orange-800', 
+                menu: 'bg-stone-900', menuBorder: 'border-stone-700',
+                ball: '#fbbf24', glow: 5, paddle: '#fef3c7',
+                getBrick: (r) => ['#ef4444', '#f97316', '#fbbf24', '#22c55e', '#3b82f6'][r % 5],
+                soundType: 'square', hitFreq: 300, failFreq: 80,
+                music: 'Field of Hopes and Dreams.mp3'
+            },
+            neon: { 
+                bg: '#000000', container: 'bg-black', border: 'border-pink-500', 
+                menu: 'bg-black', menuBorder: 'border-pink-500',
+                ball: '#00f2ff', glow: 20, paddle: '#ff00ff',
+                getBrick: (r) => ['#ff0055', '#00ff44', '#0099ff', '#ffff00', '#ff00ff'][r % 5],
+                soundType: 'sawtooth', hitFreq: 800, failFreq: 200,
+                music: 'Pandora Palace.mp3'
+            },
+            steel: { 
+                bg: '#334155', container: 'bg-slate-700', border: 'border-slate-400', 
+                menu: 'bg-slate-800', menuBorder: 'border-slate-500',
+                ball: '#e2e8f0', glow: 2, paddle: '#94a3b8',
+                getBrick: (r) => `rgb(${150 - r*20}, ${160 - r*20}, ${180 - r*20})`,
+                soundType: 'sine', hitFreq: 250, failFreq: 60,
+                music: '33. Construction Thrill.mp3'
+            },
+            space: { 
+                bg: '#020617', container: 'bg-slate-950', border: 'border-indigo-900', 
+                menu: 'bg-slate-900', menuBorder: 'border-indigo-800',
+                ball: '#c084fc', glow: 15, paddle: '#818cf8',
+                getBrick: (r) => `hsl(${260 + (r * 15)}, 80%, ${40 + r*5}%)`,
+                soundType: 'sine', hitFreq: 1200, failFreq: 300,
+                music: 'Scarlet Forest.mp3'
+            }
+        };
+
+        function updateVolume() {
+            const inMenu = (menuOverlay.style.display !== 'none' && menuOverlay.style.opacity !== '0');
+            bgMusic.volume = inMenu ? 0.15 : 0.5;
+        }
+
+        async function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+            if (bgMusic.paused) {
+                try {
+                    await bgMusic.play();
+                    isAudioInited = true;
+                } catch (e) {
+                    console.log("Autoplay blocked, waiting for interaction.");
+                }
+            }
+            updateVolume();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const theme = themeConfigs[settings.theme];
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = theme.soundType;
+            let frequency = 440;
+            let duration = 0.1;
+
+            if (type === 'hit') {
+                frequency = theme.hitFreq;
+                duration = 0.08;
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            } else if (type === 'fail') {
+                frequency = theme.failFreq;
+                duration = 0.5;
+                oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(frequency / 2, audioCtx.currentTime + duration);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            }
+
+            oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        const brickRowCount = 5;
+        const brickColumnCount = 8;
+        const brickPadding = 10;
+        const brickOffsetTop = 60;
+        const brickOffsetLeft = 20;
+        const brickHeight = 20;
+        let bricks = [];
+
+        const paddleHeight = 12;
+        let paddleWidth = 100;
+        let paddleX;
+
+        let x, y, dx, dy;
+        const ballRadius = 8;
+        const baseLaunchSpeed = 3.2; // Optimized fixed launch speed
+
+        let rightPressed = false;
+        let leftPressed = false;
+
+        function initBricks() {
+            bricks = [];
+            const theme = themeConfigs[settings.theme];
+            for (let c = 0; c < brickColumnCount; c++) {
+                bricks[c] = [];
+                for (let r = 0; r < brickRowCount; r++) {
+                    bricks[c][r] = { x: 0, y: 0, status: 1, color: theme.getBrick(r) };
+                }
+            }
+        }
+
+        function resize() {
+            canvas.width = Math.min(window.innerWidth - 40, 800);
+            canvas.height = Math.min(window.innerHeight - 300, 500);
+            paddleX = (canvas.width - paddleWidth) / 2;
+            if (!gameRunning || waitingToLaunch) resetBall();
+        }
+
+        function resetBall() {
+            waitingToLaunch = true;
+            dx = 0;
+            dy = 0;
+            paddleX = (canvas.width - paddleWidth) / 2;
+            x = paddleX + paddleWidth / 2;
+            y = canvas.height - paddleHeight - 10 - ballRadius;
+            
+            if (gameRunning) {
+                menuOverlay.style.display = 'flex';
+                mainMenu.classList.remove('hidden');
+                optionsMenu.classList.add('hidden');
+                menuTitle.innerText = "";
+                menuText.innerText = "";
+                launchIndicator.classList.remove('hidden');
+                startBtn.innerText = "LAUNCH BALL";
+                setTimeout(() => {
+                    menuOverlay.style.opacity = '1';
+                    updateVolume();
+                }, 10);
+            }
+        }
+
+        function launchBall() {
+            if (!waitingToLaunch) return;
+            // Angle between 60 and 120 degrees
+            const angle = (Math.random() * 60 + 60) * (Math.PI / 180); 
+            const dir = Math.random() > 0.5 ? 1 : -1;
+            
+            // LAUNCH SPEED FIX: Strictly use baseLaunchSpeed for start
+            dx = baseLaunchSpeed * Math.cos(angle) * dir;
+            dy = -baseLaunchSpeed * Math.sin(angle);
+            
+            waitingToLaunch = false;
+            launchIndicator.classList.add('hidden');
+            menuOverlay.style.opacity = '0';
+            setTimeout(() => {
+                menuOverlay.style.display = 'none';
+                updateVolume();
+                if (gameRunning) draw();
+            }, 300);
+        }
+
+        function togglePause() {
+            if (!gameRunning || waitingToLaunch) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                menuOverlay.style.display = 'flex';
+                mainMenu.classList.remove('hidden');
+                setTimeout(() => {
+                    menuOverlay.style.opacity = '1';
+                    updateVolume();
+                }, 10);
+                pauseIndicator.classList.remove('hidden');
+                startBtn.innerText = "RESUME";
+            } else {
+                menuOverlay.style.opacity = '0';
+                pauseIndicator.classList.add('hidden');
+                setTimeout(() => {
+                    menuOverlay.style.display = 'none';
+                    updateVolume();
+                    if (gameRunning) draw();
+                }, 300);
+            }
+        }
+
+        function collisionDetection() {
+            const bWidth = (canvas.width - (brickOffsetLeft * 2) - (brickColumnCount - 1) * brickPadding) / brickColumnCount;
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    const b = bricks[c][r];
+                    if (b.status === 1) {
+                        let closestX = Math.max(b.x, Math.min(x, b.x + bWidth));
+                        let closestY = Math.max(b.y, Math.min(y, b.y + brickHeight));
+                        let distSq = (x - closestX) ** 2 + (y - closestY) ** 2;
+
+                        if (distSq < ballRadius ** 2) {
+                            playSound('hit');
+                            if (Math.abs(x - closestX) > Math.abs(y - closestY)) dx = -dx;
+                            else dy = -dy;
+                            b.status = 0;
+                            score += 10;
+                            scoreDisplay.innerText = `Score: ${score}`;
+                            if (score === brickRowCount * brickColumnCount * 10) endGame(true);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            if (!gameRunning || isPaused) return;
+
+            if (waitingToLaunch) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawBricks();
+                drawPaddle();
+                if (rightPressed && paddleX < canvas.width - paddleWidth) paddleX += 7;
+                else if (leftPressed && paddleX > 0) paddleX -= 7;
+                x = paddleX + paddleWidth / 2;
+                y = canvas.height - paddleHeight - 10 - ballRadius;
+                drawBall();
+                requestAnimationFrame(draw);
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBricks();
+            drawBall();
+            drawPaddle();
+            collisionDetection();
+
+            if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                dx = -dx; playSound('hit');
+            }
+            if (y + dy < ballRadius) {
+                dy = -dy; playSound('hit');
+            } 
+            
+            const pTop = canvas.height - paddleHeight - 10;
+            if (y + dy > pTop && y < pTop + paddleHeight) {
+                if (x > paddleX && x < paddleX + paddleWidth) {
+                    playSound('hit');
+                    let hit = (x - (paddleX + paddleWidth/2)) / (paddleWidth/2);
+                    // Speed multiplier only applies after the first real paddle interaction
+                    const speed = 4.2 * settings.speedMult;
+                    dx = hit * speed * 0.95; 
+                    dy = -Math.sqrt(Math.max(1, speed * speed - dx * dx));
+                    y = pTop - ballRadius; 
+                }
+            }
+
+            if (y - ballRadius > canvas.height) {
+                lives--; playSound('fail');
+                livesDisplay.innerText = `Lives: ${lives}`;
+                if (!lives) endGame(false);
+                else resetBall();
+                return;
+            }
+
+            if (rightPressed && paddleX < canvas.width - paddleWidth) paddleX += 7;
+            else if (leftPressed && paddleX > 0) paddleX -= 7;
+
+            x += dx;
+            y += dy;
+            animationFrameId = requestAnimationFrame(draw);
+        }
+
+        function drawBall() {
+            const theme = themeConfigs[settings.theme];
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = theme.ball;
+            if (theme.glow) { ctx.shadowBlur = theme.glow; ctx.shadowColor = theme.ball; }
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawPaddle() {
+            const theme = themeConfigs[settings.theme];
+            ctx.beginPath();
+            ctx.roundRect(paddleX, canvas.height - paddleHeight - 10, paddleWidth, paddleHeight, 6);
+            ctx.fillStyle = theme.paddle;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawBricks() {
+            const bWidth = (canvas.width - (brickOffsetLeft * 2) - (brickColumnCount - 1) * brickPadding) / brickColumnCount;
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    if (bricks[c][r].status === 1) {
+                        const bx = (c * (bWidth + brickPadding)) + brickOffsetLeft;
+                        const by = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                        bricks[c][r].x = bx; bricks[c][r].y = by;
+                        ctx.beginPath();
+                        ctx.roundRect(bx, by, bWidth, brickHeight, 4);
+                        ctx.fillStyle = bricks[c][r].color;
+                        ctx.fill();
+                        ctx.closePath();
+                    }
+                }
+            }
+        }
+
+        function setTheme(themeKey) {
+            settings.theme = themeKey;
+            const config = themeConfigs[themeKey];
+            document.body.style.backgroundColor = config.bg;
+            document.getElementById('game-container').className = `relative ${config.container} shadow-2xl rounded-lg border ${config.border} mb-8 transition-all duration-500`;
+            themeBtns.forEach(btn => btn.className = btn.dataset.theme === themeKey ? "theme-btn py-2 rounded text-[10px] font-bold border border-white bg-white text-black" : "theme-btn py-2 rounded text-[10px] font-bold border border-slate-700 bg-transparent text-slate-400");
+            
+            const wasPaused = bgMusic.paused;
+            bgMusic.src = config.music;
+            // AUDIO FIX: play only if context is ready or music was already active
+            if (!wasPaused || isAudioInited) {
+                bgMusic.play().catch(() => {});
+            }
+            updateVolume();
+            initBricks();
+        }
+
+        function startGame() {
+            score = 0; lives = 3;
+            scoreDisplay.innerText = `Score: 0`; livesDisplay.innerText = `Lives: 3`;
+            initBricks();
+            gameRunning = true;
+            isPaused = false;
+            resetBall();
+            menuTitle.innerText = "Brick Breaker";
+            draw();
+        }
+
+        function endGame(win) {
+            gameRunning = false;
+            cancelAnimationFrame(animationFrameId);
+            menuOverlay.style.display = 'flex';
+            setTimeout(() => { menuOverlay.style.opacity = '1'; updateVolume(); }, 10);
+            menuTitle.innerText = win ? "VICTORY!" : "GAME OVER";
+            menuTitle.className = win ? "text-4xl font-black text-green-400 mb-2 uppercase" : "text-4xl font-black text-red-500 mb-2 uppercase";
+            menuText.innerText = `Final Score: ${score}`;
+            startBtn.innerText = "PLAY AGAIN";
+            pauseIndicator.classList.add('hidden');
+            launchIndicator.classList.add('hidden');
+        }
+
+        startBtn.onclick = () => { initAudio(); if (waitingToLaunch && gameRunning) launchBall(); else if (isPaused) togglePause(); else startGame(); };
+        optionsBtn.onclick = () => { mainMenu.classList.add('hidden'); optionsMenu.classList.remove('hidden'); initAudio(); };
+        backBtn.onclick = () => { optionsMenu.classList.add('hidden'); mainMenu.classList.remove('hidden'); updateVolume(); };
+        speedSlider.oninput = (e) => { settings.speedMult = parseFloat(e.target.value); speedValDisplay.innerText = settings.speedMult.toFixed(1); };
+        themeBtns.forEach(btn => btn.onclick = () => setTheme(btn.dataset.theme));
+
+        window.addEventListener('keydown', (e) => {
+            initAudio();
+            if (activeKeyBind) { settings.keys[activeKeyBind] = e.key; activeKeyBind = null; keyLeftBtn.innerText = settings.keys.left; keyRightBtn.innerText = settings.keys.right; keyPauseBtn.innerText = settings.keys.pause; return; }
+            if (e.key === settings.keys.right) rightPressed = true;
+            if (e.key === settings.keys.left) leftPressed = true;
+            if (e.key.toLowerCase() === settings.keys.pause.toLowerCase()) togglePause();
+            if (waitingToLaunch && gameRunning && e.key === ' ') launchBall();
+        });
+        window.addEventListener('keyup', (e) => { if (e.key === settings.keys.right) rightPressed = false; if (e.key === settings.keys.left) leftPressed = false; });
+        window.addEventListener('mousemove', (e) => { if (isPaused || !gameRunning) return; const rx = e.clientX - canvas.getBoundingClientRect().left; if (rx > 0 && rx < canvas.width) paddleX = rx - paddleWidth / 2; });
+        window.addEventListener('touchstart', (e) => { initAudio(); if (waitingToLaunch && gameRunning) launchBall(); }, { passive: false });
+        window.addEventListener('touchmove', (e) => { e.preventDefault(); const rx = e.touches[0].clientX - canvas.getBoundingClientRect().left; if (rx > 0 && rx < canvas.width) paddleX = rx - paddleWidth / 2; }, { passive: false });
+        window.addEventListener('resize', resize);
+        
+        let activeKeyBind = null;
+        keyLeftBtn.onclick = () => { activeKeyBind = 'left'; keyLeftBtn.innerText = '...'; };
+        keyRightBtn.onclick = () => { activeKeyBind = 'right'; keyRightBtn.innerText = '...'; };
+        keyPauseBtn.onclick = () => { activeKeyBind = 'pause'; keyPauseBtn.innerText = '...'; };
+
+        window.onload = () => { resize(); setTheme('futuristic'); };
+    </script>
+</body>
+</html>
