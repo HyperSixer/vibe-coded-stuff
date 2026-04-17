@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Player Pong</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #111;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+        canvas {
+            border: 4px solid #fff;
+            background-color: #000;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+            width: 800px;
+            height: 500px;
+            max-width: 95vw;
+            max-height: 80vh;
+        }
+        .controls-hint {
+            margin-top: 15px;
+            display: flex;
+            gap: 30px;
+            opacity: 0.7;
+        }
+        .key {
+            background: #333;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #fbbf24;
+        }
+        #startMenu, #optionsMenu, #modifiersMenu, #winScreen {
+            transition: opacity 0.3s ease;
+        }
+        input[type=range] {
+            accent-color: white;
+        }
+        .keybind-btn {
+            background: #222;
+            border: 1px solid #444;
+            padding: 4px 12px;
+            border-radius: 4px;
+            min-width: 80px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .keybind-btn:hover {
+            border-color: #fff;
+        }
+        .keybind-btn.waiting {
+            border-color: #fbbf24;
+            color: #fbbf24;
+            animation: pulse 1s infinite;
+        }
+        .theme-btn {
+            background: #222;
+            border: 2px solid #444;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: monospace;
+            transition: all 0.2s;
+        }
+        .theme-btn.active {
+            border-color: #fbbf24;
+            background: #333;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        #optionsContent::-webkit-scrollbar, #modifiersContent::-webkit-scrollbar {
+            width: 6px;
+        }
+        #optionsContent::-webkit-scrollbar-track, #modifiersContent::-webkit-scrollbar-track {
+            background: #000;
+        }
+        #optionsContent::-webkit-scrollbar-thumb, #modifiersContent::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            user-select: none;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .checkbox-container:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .custom-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid white;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .custom-checkbox.checked {
+            background: #fbbf24;
+            border-color: #fbbf24;
+        }
+        .custom-checkbox.checked::after {
+            content: '✓';
+            color: black;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        #scoreBoard.dozer-active {
+            color: #fbbf24;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+            transform: scale(1.1);
+        }
+        #scoreBoard.carnation-active {
+            color: #f472b6;
+            text-shadow: 0 0 10px rgba(244, 114, 182, 0.5);
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="scoreBoard" class="hidden text-4xl mb-4 font-mono transition-all duration-200">
+        <span id="leftScore">0</span> : <span id="rightScore">0</span>
+    </div>
+
+    <div class="relative">
+        <canvas id="pongCanvas" width="800" height="500"></canvas>
+        
+        <!-- Start Menu -->
+        <div id="startMenu" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
+            <h1 class="text-6xl font-mono font-bold mb-8 tracking-tighter text-white">PONG</h1>
+            <div class="flex flex-col gap-3 items-center">
+                <div class="flex gap-4">
+                    <button onclick="startGame(1)" class="px-8 py-4 bg-white text-black font-mono font-bold text-xl rounded hover:bg-gray-200 transition-colors">
+                        PLAY 1P
+                    </button>
+                    <button onclick="startGame(2)" class="px-8 py-4 border-2 border-white text-white font-mono font-bold text-xl rounded hover:bg-white hover:text-black transition-colors">
+                        PLAY 2P
+                    </button>
+                </div>
+                <button onclick="showOptions()" class="px-8 py-2 text-white font-mono font-bold text-lg hover:underline transition-all">
+                    [ OPTIONS ]
+                </button>
+                <button onclick="showModifiers()" class="px-8 py-2 text-white font-mono font-bold text-lg hover:underline transition-all">
+                    [ MODIFIERS ]
+                </button>
+            </div>
+        </div>
+
+        <!-- Options Menu -->
+        <div id="optionsMenu" class="hidden absolute inset-0 flex flex-col bg-black/95">
+            <div class="p-6 text-center border-b border-gray-800">
+                <h2 class="text-3xl font-mono font-bold text-white">GAME OPTIONS</h2>
+            </div>
+            
+            <div id="optionsContent" class="flex-1 overflow-y-auto px-6 py-10">
+                <div class="w-full max-w-lg mx-auto grid grid-cols-2 gap-8">
+                    <div class="col-span-2 px-4">
+                        <label class="block font-mono mb-2 text-center text-lg">AI Level: <span id="difficultyLabel" class="text-yellow-400">3</span></label>
+                        <input type="range" id="speedSlider" min="1" max="6" value="3" step="1" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                               oninput="updateDifficultyLabel(this.value)">
+                    </div>
+
+                    <div class="col-span-2 px-4">
+                        <label class="block font-mono mb-1 text-center text-lg">Game Points</label>
+                        <input type="number" id="gamePointsInput" placeholder="Infinite" min="1"
+                               class="w-full bg-gray-800 border-2 border-white rounded p-1 text-center font-mono text-white focus:outline-none focus:border-yellow-400">
+                    </div>
+
+                    <div class="col-span-2 px-4">
+                        <label class="block font-mono mb-2 text-center text-lg">Ball Speed Multiplier: <span id="speedMultLabel" class="text-yellow-400">1.0</span>x</label>
+                        <input type="range" id="speedMultSlider" min="0.5" max="2" value="1" step="0.1" 
+                               class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                               oninput="updateSpeedMultLabel(this.value)">
+                    </div>
+
+                    <div class="col-span-2 mt-4 border-t border-gray-700 pt-8">
+                        <h3 class="text-center font-mono font-bold mb-8 text-yellow-400">CUSTOM KEYBINDS</h3>
+                        <div class="grid grid-cols-2 gap-x-12 gap-y-6 text-sm font-mono px-4">
+                            <div class="flex flex-col gap-4">
+                                <div class="text-center border-b border-gray-800 pb-2 mb-2 text-gray-400 text-xs">PLAYER 1</div>
+                                <div class="flex items-center justify-between">
+                                    <span>Up:</span>
+                                    <div id="bind-p1Up" class="keybind-btn" onclick="startBinding('p1Up')">W</div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Down:</span>
+                                    <div id="bind-p1Down" class="keybind-btn" onclick="startBinding('p1Down')">S</div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-4">
+                                <div class="text-center border-b border-gray-800 pb-2 mb-2 text-gray-400 text-xs">PLAYER 2</div>
+                                <div class="flex items-center justify-between">
+                                    <span>Up:</span>
+                                    <div id="bind-p2Up" class="keybind-btn" onclick="startBinding('p2Up')">ArrowUp</div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Down:</span>
+                                    <div id="bind-p2Down" class="keybind-btn" onclick="startBinding('p2Down')">ArrowDown</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between col-span-2 w-1/2 mx-auto mt-6">
+                                <span>Pause:</span>
+                                <div id="bind-pause" class="keybind-btn" onclick="startBinding('pause')">KeyP</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-span-2 mt-8 border-t border-gray-700 pt-8 pb-10">
+                        <h3 class="text-center font-mono font-bold mb-6 text-yellow-400">APPEARANCE</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <button id="theme-default" onclick="setTheme('default')" class="theme-btn active flex-1">
+                                <div class="text-xs mb-1">DEFAULT</div>
+                                <div class="h-8 bg-black border border-white flex items-center justify-center">
+                                    <div class="w-2 h-4 bg-white mx-1"></div>
+                                    <div class="w-2 h-2 rounded-full bg-white mx-1"></div>
+                                    <div class="w-2 h-4 bg-white mx-1"></div>
+                                </div>
+                            </button>
+                            <button id="theme-pool" onclick="setTheme('pool')" class="theme-btn flex-1">
+                                <div class="text-xs mb-1 font-bold">POOL</div>
+                                <div class="h-8 bg-green-800 border border-green-600 flex items-center justify-center">
+                                    <div class="w-2 h-4 bg-amber-800 mx-1"></div>
+                                    <div class="w-2 h-2 rounded-full bg-black mx-1"></div>
+                                    <div class="w-2 h-4 bg-amber-800 mx-1"></div>
+                                </div>
+                            </button>
+                            <button id="theme-retro" onclick="setTheme('retro')" class="theme-btn flex-1">
+                                <div class="text-xs mb-1 font-bold text-green-500">RETRO</div>
+                                <div class="h-8 bg-black border border-green-500 flex items-center justify-center">
+                                    <div class="w-2 h-4 bg-green-500 mx-1"></div>
+                                    <div class="w-2 h-2 rounded-full bg-green-500 mx-1"></div>
+                                    <div class="w-2 h-4 bg-green-500 mx-1"></div>
+                                </div>
+                            </button>
+                            <button id="theme-ultrakill" onclick="setTheme('ultrakill')" class="theme-btn flex-1">
+                                <div class="text-xs mb-1 font-bold text-red-500">ULTRAKILL</div>
+                                <div class="h-8 bg-[#1a0f14] border border-[#7f1d1d] flex items-center justify-center">
+                                    <div class="w-2 h-4 bg-blue-500 mx-1"></div>
+                                    <div class="w-2 h-2 rounded-full bg-yellow-400 mx-1"></div>
+                                    <div class="w-2 h-4 bg-red-500 mx-1"></div>
+                                </div>
+                            </button>
+                            <button id="theme-space" onclick="setTheme('space')" class="theme-btn flex-1">
+                                <div class="text-xs mb-1 font-bold text-purple-400">SPACE</div>
+                                <div class="h-8 bg-slate-900 border border-blue-900 flex items-center justify-center">
+                                    <div class="w-2 h-4 bg-purple-400 mx-1"></div>
+                                    <div class="w-2 h-2 rounded-full bg-indigo-100 mx-1"></div>
+                                    <div class="w-2 h-4 bg-purple-400 mx-1"></div>
+                                </div>
+                            </button>
+                            <button id="theme-neon" onclick="setTheme('neon')" class="theme-btn flex-1">
+                                <div class="text-xs mb-1 font-bold text-pink-500">NEON</div>
+                                <div class="h-8 bg-zinc-900 border border-pink-500 flex items-center justify-center">
+                                    <div class="w-2 h-4 bg-cyan-400 mx-1"></div>
+                                    <div class="w-2 h-2 rounded-full bg-pink-400 mx-1"></div>
+                                    <div class="w-2 h-4 bg-cyan-400 mx-1"></div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 text-center border-t border-gray-800">
+                <button onclick="hideOptions()" class="px-8 py-2 border-2 border-white text-white font-mono font-bold text-lg rounded hover:bg-white hover:text-black transition-colors">
+                    SAVE & BACK
+                </button>
+            </div>
+        </div>
+
+        <!-- Modifiers Menu -->
+        <div id="modifiersMenu" class="hidden absolute inset-0 flex flex-col bg-black/95">
+            <div class="p-6 text-center border-b border-gray-800">
+                <h2 class="text-3xl font-mono font-bold text-white">GAME MODIFIERS</h2>
+            </div>
+            
+            <div id="modifiersContent" class="flex-1 overflow-y-auto px-6 py-10">
+                <div class="w-full max-w-lg mx-auto flex flex-col gap-4">
+                    <!-- Shorter Paddles Branch -->
+                    <div class="checkbox-container" onclick="toggleModifier('shorterPaddles')">
+                        <div id="check-shorterPaddles" class="custom-checkbox"></div>
+                        <span class="font-mono text-lg">Shorter Paddles</span>
+                    </div>
+
+                    <div id="nest-shorterPaddles" class="hidden flex flex-col gap-4 pl-10 border-l border-gray-800 ml-2">
+                        <div class="checkbox-container" onclick="toggleModifier('brokenPaddles')">
+                            <div id="check-brokenPaddles" class="custom-checkbox"></div>
+                            <span class="font-mono text-base text-gray-300">Broken Paddles</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Portals Branch -->
+                    <div class="checkbox-container" onclick="toggleModifier('portals')">
+                        <div id="check-portals" class="custom-checkbox"></div>
+                        <span class="font-mono text-lg">Portals</span>
+                    </div>
+
+                    <div id="nest-portals" class="hidden flex flex-col gap-4 pl-10 border-l border-gray-800 ml-2">
+                        <div class="checkbox-container" onclick="toggleModifier('morePortals')">
+                            <div id="check-morePortals" class="custom-checkbox"></div>
+                            <span class="font-mono text-base text-gray-300">More Portals</span>
+                        </div>
+                        <div id="nest-morePortals" class="hidden flex flex-col gap-4 pl-10 border-l border-gray-800 ml-2">
+                            <div class="checkbox-container" onclick="toggleModifier('evenMorePortals')">
+                                <div id="check-evenMorePortals" class="custom-checkbox"></div>
+                                <span class="font-mono text-base text-gray-400">Even More Portals</span>
+                            </div>
+                        </div>
+
+                        <div class="checkbox-container" onclick="toggleModifier('largerPortals')">
+                            <div id="check-largerPortals" class="custom-checkbox"></div>
+                            <span class="font-mono text-base text-gray-300">Larger Portals</span>
+                        </div>
+                        <div id="nest-largerPortals" class="hidden flex flex-col gap-4 pl-10 border-l border-gray-800 ml-2">
+                            <div class="checkbox-container" onclick="toggleModifier('evenLargerPortals')">
+                                <div id="check-evenLargerPortals" class="custom-checkbox"></div>
+                                <span class="font-mono text-base text-gray-400">Even Larger Portals</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Wraparound Toggle -->
+                    <div class="checkbox-container" onclick="toggleModifier('wraparound')">
+                        <div id="check-wraparound" class="custom-checkbox"></div>
+                        <span class="font-mono text-lg">Wraparound</span>
+                    </div>
+
+                    <div id="nest-wraparound" class="hidden flex flex-col gap-4 pl-10 border-l border-gray-800 ml-2">
+                        <div class="checkbox-container" onclick="toggleModifier('limbo')">
+                            <div id="check-limbo" class="custom-checkbox"></div>
+                            <span class="font-mono text-base text-gray-300">Limbo</span>
+                        </div>
+                        <div class="checkbox-container" onclick="toggleModifier('fraud')">
+                            <div id="check-fraud" class="custom-checkbox"></div>
+                            <span class="font-mono text-base text-gray-300">Fraud</span>
+                        </div>
+                    </div>
+
+                    <!-- Anomalies Branch -->
+                    <div class="checkbox-container" onclick="toggleModifier('anomalies')">
+                        <div id="check-anomalies" class="custom-checkbox"></div>
+                        <span class="font-mono text-lg">Anomalies</span>
+                    </div>
+                    
+                    <div id="nest-anomalies" class="hidden flex flex-col gap-4 pl-10 border-l border-gray-800 ml-2">
+                        <div class="checkbox-container" onclick="toggleModifier('dozer')">
+                            <div id="check-dozer" class="custom-checkbox"></div>
+                            <span class="font-mono text-base text-gray-300">Dozer</span>
+                        </div>
+                        
+                        <div id="nest-dozer" class="hidden flex flex-col gap-2 pl-10 border-l border-gray-800 ml-2">
+                            <div class="checkbox-container" onclick="toggleModifier('insomniac')">
+                                <div id="check-insomniac" class="custom-checkbox"></div>
+                                <span class="font-mono text-sm text-gray-400">Insomniac</span>
+                            </div>
+                            <div class="checkbox-container" onclick="toggleModifier('prideful')">
+                                <div id="check-prideful" class="custom-checkbox"></div>
+                                <span class="font-mono text-sm text-gray-400">Prideful</span>
+                            </div>
+                        </div>
+
+                        <div class="checkbox-container" onclick="toggleModifier('carnation')">
+                            <div id="check-carnation" class="custom-checkbox"></div>
+                            <span class="font-mono text-base text-gray-300">Carnation</span>
+                        </div>
+                        
+                        <div id="nest-carnation" class="hidden flex flex-col gap-2 pl-10 border-l border-gray-800 ml-2">
+                            <div class="checkbox-container" onclick="toggleModifier('oPlatekMniej')">
+                                <div id="check-oPlatekMniej" class="custom-checkbox"></div>
+                                <span class="font-mono text-sm text-gray-400">o płatek mniej</span>
+                            </div>
+                            <div class="checkbox-container" onclick="toggleModifier('sunflower')">
+                                <div id="check-sunflower" class="custom-checkbox"></div>
+                                <span class="font-mono text-sm text-gray-400">Sunflower</span>
+                            </div>
+                            <div class="checkbox-container" onclick="toggleModifier('speakNoEvil')">
+                                <div id="check-speakNoEvil" class="custom-checkbox"></div>
+                                <span class="font-mono text-sm text-gray-400">Speak No Evil</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 text-center border-t border-gray-800">
+                <button onclick="hideModifiers()" class="px-8 py-2 border-2 border-white text-white font-mono font-bold text-lg rounded hover:bg-white hover:text-black transition-colors">
+                    SAVE & BACK
+                </button>
+            </div>
+        </div>
+
+        <!-- Game States -->
+        <div id="pauseOverlay" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/60">
+            <h2 class="text-6xl font-mono font-bold tracking-widest mb-8">PAUSED</h2>
+            <div class="flex flex-col gap-4 pointer-events-auto">
+                <button onclick="togglePause()" class="px-8 py-3 bg-white text-black font-mono font-bold text-xl rounded hover:bg-gray-200 transition-colors">
+                    RESUME
+                </button>
+                <button onclick="quitToTitle()" class="px-8 py-3 border-2 border-white text-white font-mono font-bold text-xl rounded hover:bg-white hover:text-black transition-colors">
+                    QUIT TO TITLE
+                </button>
+            </div>
+        </div>
+
+        <div id="winScreen" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/90">
+            <h2 id="winnerAnnouncement" class="text-4xl font-mono font-bold text-yellow-400 mb-2"></h2>
+            <div id="finalScoreDisplay" class="text-6xl font-mono font-bold text-white mb-10"></div>
+            <button onclick="quitToTitle()" class="px-8 py-4 bg-white text-black font-mono font-bold text-xl rounded hover:bg-gray-200 transition-colors">
+                TITLE SCREEN
+            </button>
+        </div>
+    </div>
+
+    <div id="controlsHint" class="controls-hint font-mono text-sm hidden">
+        <div>P1: <span class="key" id="hint-p1Up">W</span> / <span class="key" id="hint-p1Down">S</span></div>
+        <div id="p2Hint">P2: <span class="key" id="hint-p2Up">↑</span> / <span class="key" id="hint-p2Down">↓</span></div>
+        <div>Pause: <span class="key" id="hint-pause">P</span></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        const leftScoreDisplay = document.getElementById('leftScore');
+        const rightScoreDisplay = document.getElementById('rightScore');
+        const pauseOverlay = document.getElementById('pauseOverlay');
+        const startMenu = document.getElementById('startMenu');
+        const optionsMenu = document.getElementById('optionsMenu');
+        const modifiersMenu = document.getElementById('modifiersMenu');
+        const scoreBoard = document.getElementById('scoreBoard');
+        const controlsHint = document.getElementById('controlsHint');
+        const p2Hint = document.getElementById('p2Hint');
+        const difficultyLabel = document.getElementById('difficultyLabel');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedMultLabel = document.getElementById('speedMultLabel');
+        const speedMultSlider = document.getElementById('speedMultSlider');
+        const gamePointsInput = document.getElementById('gamePointsInput');
+        const winScreen = document.getElementById('winScreen');
+        const winnerAnnouncement = document.getElementById('winnerAnnouncement');
+        const finalScoreDisplay = document.getElementById('finalScoreDisplay');
+
+        const config = {
+            width: 800,
+            height: 500,
+            paddleWidth: 10,
+            basePaddleHeight: 80,
+            paddleHeight: 80,
+            paddleSpeed: 7,
+            aiSpeed: 6.5,            
+            aiReturnSpeed: 3,        
+            aiReactionFrames: 45,    
+            aiDeadzone: 10,          
+            ballSize: 8,
+            serveSpeed: 3,           
+            minVolleySpeed: 5,       
+            ballSpeedIncrement: 0.3,
+            speedMultiplier: 1.0,
+            theme: 'default'
+        };
+
+        const themes = {
+            default: { bg: '#000', line: '#333', paddle: '#fff', ball: '#fff', canvasBorder: '#fff' },
+            pool: { bg: '#065f46', line: '#047857', paddle: '#92400e', ball: '#000', canvasBorder: '#064e3b' },
+            retro: { bg: '#000', line: '#0f0', paddle: '#0f0', ball: '#0f0', canvasBorder: '#0f0' },
+            ultrakill: { bg: '#1a0f14', line: '#4a2531', paddle: '#fff', p1Paddle: '#3b82f6', p2Paddle: '#ef4444', ball: '#facc15', canvasBorder: '#7f1d1d' },
+            space: { bg: '#0f172a', line: '#312e81', paddle: '#a78bfa', ball: '#e0e7ff', canvasBorder: '#1e3a8a' },
+            neon: { bg: '#09090b', line: '#db2777', paddle: '#22d3ee', ball: '#f472b6', canvasBorder: '#ec4899' }
+        };
+
+        const modifiers = {
+            shorterPaddles: false,
+            brokenPaddles: false,
+            portals: false,
+            morePortals: false,
+            evenMorePortals: false,
+            largerPortals: false,
+            evenLargerPortals: false,
+            wraparound: false,
+            limbo: false,
+            fraud: false,
+            anomalies: false,
+            dozer: false,
+            insomniac: false,
+            prideful: false,
+            carnation: false,
+            oPlatekMniej: false,
+            sunflower: false,
+            speakNoEvil: false
+        };
+
+        let activePortals = []; 
+        const basePortalRadius = 20;
+        let currentPortalRadius = 20;
+        let ballInPortalCooldown = 0; 
+        
+        let ballStasis = {
+            active: false,
+            targetX: 0,
+            targetY: 0,
+            timer: 0,
+            activePair: null,
+            fraudType: null,
+            anomalyType: null
+        };
+
+        let dozerState = {
+            nextTriggerTime: 0,
+            targetPlayer: null
+        };
+
+        let carnationState = {
+            active: false,
+            cooldown: false
+        };
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+            const theme = config.theme;
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            let wave = 'square';
+            let fStart = 300, fEnd = 600, duration = 0.1, vol = 0.1;
+
+            if (theme === 'ultrakill') {
+                // Metallic
+                if (type === 'paddle') { wave = 'sawtooth'; fStart = 800; fEnd = 100; duration = 0.08; vol = 0.15; }
+                else if (type === 'wall') { wave = 'sawtooth'; fStart = 400; fEnd = 50; duration = 0.1; vol = 0.15; }
+                else if (type === 'portalIn') { wave = 'triangle'; fStart = 1200; fEnd = 100; duration = 0.3; vol = 0.2; }
+                else if (type === 'portalOut') { wave = 'triangle'; fStart = 100; fEnd = 1200; duration = 0.3; vol = 0.2; }
+            } else if (theme === 'space' || theme === 'neon') {
+                // Wavey
+                if (type === 'paddle') { wave = 'sine'; fStart = 400; fEnd = 800; duration = 0.2; vol = 0.2; }
+                else if (type === 'wall') { wave = 'sine'; fStart = 200; fEnd = 100; duration = 0.2; vol = 0.2; }
+                else if (type === 'portalIn') { wave = 'sine'; fStart = 800; fEnd = 200; duration = 0.5; vol = 0.2; }
+                else if (type === 'portalOut') { wave = 'sine'; fStart = 200; fEnd = 800; duration = 0.5; vol = 0.2; }
+            } else if (theme === 'retro') {
+                // Retro (chiptune steps)
+                if (type === 'paddle') { wave = 'square'; fStart = 440; fEnd = 880; duration = 0.1; vol = 0.1; }
+                else if (type === 'wall') { wave = 'square'; fStart = 150; fEnd = 150; duration = 0.1; vol = 0.1; }
+                else if (type === 'portalIn') { wave = 'square'; fStart = 600; fEnd = 150; duration = 0.3; vol = 0.1; }
+                else if (type === 'portalOut') { wave = 'square'; fStart = 150; fEnd = 600; duration = 0.3; vol = 0.1; }
+            } else if (theme === 'pool') {
+                // Wooden / Percussive
+                if (type === 'paddle') { wave = 'triangle'; fStart = 300; fEnd = 50; duration = 0.05; vol = 0.3; }
+                else if (type === 'wall') { wave = 'triangle'; fStart = 150; fEnd = 40; duration = 0.06; vol = 0.3; }
+                else if (type === 'portalIn') { wave = 'triangle'; fStart = 400; fEnd = 100; duration = 0.2; vol = 0.2; }
+                else if (type === 'portalOut') { wave = 'triangle'; fStart = 100; fEnd = 400; duration = 0.2; vol = 0.2; }
+            } else {
+                // Default
+                if (type === 'paddle') { wave = 'square'; fStart = 300; fEnd = 600; duration = 0.1; vol = 0.1; }
+                else if (type === 'wall') { wave = 'square'; fStart = 150; fEnd = 150; duration = 0.1; vol = 0.1; }
+                else if (type === 'portalIn') { wave = 'sine'; fStart = 500; fEnd = 200; duration = 0.3; vol = 0.15; }
+                else if (type === 'portalOut') { wave = 'sine'; fStart = 200; fEnd = 600; duration = 0.2; vol = 0.15; }
+            }
+
+            osc.type = wave;
+            osc.frequency.setValueAtTime(fStart, now);
+            
+            if (theme === 'retro') {
+                osc.frequency.setValueAtTime(fEnd, now + duration / 2);
+            } else {
+                osc.frequency.exponentialRampToValueAtTime(Math.max(fEnd, 1), now + duration);
+            }
+
+            gainNode.gain.setValueAtTime(vol, now);
+            if (theme === 'pool') {
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+            } else {
+                gainNode.gain.linearRampToValueAtTime(0.01, now + duration);
+            }
+            
+            osc.start(now);
+            osc.stop(now + duration);
+        }
+
+        canvas.width = config.width;
+        canvas.height = config.height;
+
+        let currentBindingAction = null;
+        const keybinds = {
+            p1Up: 'KeyW',
+            p1Down: 'KeyS',
+            p2Up: 'ArrowUp',
+            p2Down: 'ArrowDown',
+            pause: 'KeyP'
+        };
+
+        const state = {
+            gameStarted: false,
+            players: 1, 
+            difficultyMode: "3", 
+            currentAIDifficulty: 3,
+            maxPoints: null, 
+            gameOver: false,
+            leftPaddleY: (config.height - config.paddleHeight) / 2,
+            rightPaddleY: (config.height - config.paddleHeight) / 2,
+            ballX: config.width / 2,
+            ballY: config.height / 2,
+            ballDX: config.serveSpeed,
+            ballDY: config.serveSpeed,
+            leftScore: 0,
+            rightScore: 0,
+            keys: {},
+            isFirstPitch: true,
+            paused: false,
+            aiReactionTimer: 0,
+            lastSide: 0
+        };
+
+        function showOptions() { startMenu.classList.add('hidden'); optionsMenu.classList.remove('hidden'); }
+        function hideOptions() {
+            if (currentBindingAction) {
+                const btn = document.getElementById(`bind-${currentBindingAction}`);
+                btn.classList.remove('waiting');
+                btn.textContent = keybinds[currentBindingAction];
+                currentBindingAction = null;
+            }
+            updateHints();
+            optionsMenu.classList.add('hidden');
+            startMenu.classList.remove('hidden');
+        }
+
+        function showModifiers() { startMenu.classList.add('hidden'); modifiersMenu.classList.remove('hidden'); }
+        function hideModifiers() { modifiersMenu.classList.add('hidden'); startMenu.classList.remove('hidden'); }
+
+        function toggleModifier(key) {
+            modifiers[key] = !modifiers[key];
+            const checkEl = document.getElementById(`check-${key}`);
+            const nestEl = document.getElementById(`nest-${key}`);
+            
+            if (modifiers[key]) {
+                checkEl.classList.add('checked');
+                if (nestEl) nestEl.classList.remove('hidden');
+
+                // Enforce mutual exclusivity
+                if (key === 'limbo' && modifiers.fraud) {
+                    modifiers.fraud = false;
+                    document.getElementById('check-fraud').classList.remove('checked');
+                } else if (key === 'fraud' && modifiers.limbo) {
+                    modifiers.limbo = false;
+                    document.getElementById('check-limbo').classList.remove('checked');
+                }
+            } else {
+                checkEl.classList.remove('checked');
+                if (nestEl) nestEl.classList.add('hidden');
+                disableModifierBranch(key);
+            }
+        }
+
+        function disableModifierBranch(parentKey) {
+            const hierarchy = {
+                'portals': ['morePortals', 'largerPortals', 'evenMorePortals', 'evenLargerPortals'],
+                'morePortals': ['evenMorePortals'],
+                'largerPortals': ['evenLargerPortals'],
+                'shorterPaddles': ['brokenPaddles'],
+                'wraparound': ['limbo', 'fraud'],
+                'anomalies': ['dozer', 'insomniac', 'prideful', 'carnation', 'oPlatekMniej', 'sunflower', 'speakNoEvil'],
+                'dozer': ['insomniac', 'prideful'],
+                'carnation': ['oPlatekMniej', 'sunflower', 'speakNoEvil']
+            };
+            if (hierarchy[parentKey]) {
+                hierarchy[parentKey].forEach(childKey => {
+                    modifiers[childKey] = false;
+                    const check = document.getElementById(`check-${childKey}`);
+                    if (check) check.classList.remove('checked');
+                    const nest = document.getElementById(`nest-${childKey}`);
+                    if (nest) nest.classList.add('hidden');
+                    disableModifierBranch(childKey);
+                });
+            }
+        }
+
+        function setTheme(name) {
+            config.theme = name;
+            ['default', 'pool', 'retro', 'ultrakill', 'space', 'neon'].forEach(t => {
+                const el = document.getElementById(`theme-${t}`);
+                if (el) el.classList.toggle('active', name === t);
+            });
+            canvas.style.borderColor = themes[name].canvasBorder;
+        }
+
+        function setupGameConditions() {
+            config.paddleHeight = modifiers.shorterPaddles ? config.basePaddleHeight * (5/8) : config.basePaddleHeight;
+            currentPortalRadius = basePortalRadius;
+            if (modifiers.evenLargerPortals) currentPortalRadius = basePortalRadius * 3;
+            else if (modifiers.largerPortals) currentPortalRadius = basePortalRadius * 2;
+
+            activePortals = [];
+            ballStasis.active = false;
+            ballStasis.fraudType = null;
+            ballStasis.anomalyType = null;
+            
+            scoreBoard.classList.remove('dozer-active', 'carnation-active');
+            carnationState.active = false;
+            carnationState.cooldown = false;
+
+            if (modifiers.dozer) {
+                scheduleNextDozer();
+            }
+
+            if (modifiers.portals) {
+                let pairCount = 1;
+                if (modifiers.evenMorePortals) pairCount = 3;
+                else if (modifiers.morePortals) pairCount = 2;
+
+                const colors = [
+                    { primary: '#a855f7', secondary: '#6b21a8', swirl: '#d8b4fe', name: 'purple' }, 
+                    { primary: '#f97316', secondary: '#c2410c', swirl: '#fdba74', name: 'orange' }, 
+                    { primary: '#3b82f6', secondary: '#1d4ed8', swirl: '#93c5fd', name: 'blue' }  
+                ];
+
+                for (let i = 0; i < pairCount; i++) {
+                    const pair = generateConstraintPortalPair(activePortals, colors[i].name);
+                    activePortals.push({
+                        p1: pair.p1,
+                        p2: pair.p2,
+                        theme: colors[i],
+                        hitsSincePaddle: 0, 
+                        overloadUntil: 0,
+                        stasisTime: colors[i].name === 'blue' ? 667 : 333
+                    });
+                }
+                ballInPortalCooldown = 0;
+            }
+
+            state.leftPaddleY = (config.height - config.paddleHeight) / 2;
+            state.rightPaddleY = (config.height - config.paddleHeight) / 2;
+        }
+
+        function scheduleNextDozer() {
+            const interval = modifiers.prideful ? 20000 : 30000;
+            const variance = interval * 0.2;
+            const delay = interval + (Math.random() * variance * 2 - variance);
+            dozerState.nextTriggerTime = Date.now() + delay;
+        }
+
+        function generateConstraintPortalPair(existing, pairName) {
+            const margin = 80;
+            const buffer = currentPortalRadius * 2.5;
+            let attempts = 0;
+            
+            while (attempts < 500) {
+                attempts++;
+                let p1, p2;
+
+                if (pairName === 'blue') {
+                    p1 = {
+                        x: 50 + Math.random() * (config.width / 4 - 50),
+                        y: margin + Math.random() * (config.height - margin * 2)
+                    };
+                    p2 = {
+                        x: (config.width * 0.75) + Math.random() * (config.width / 4 - 50),
+                        y: margin + Math.random() * (config.height - margin * 2)
+                    };
+                } else {
+                    const middleStart = config.width * 0.25;
+                    const middleWidth = config.width * 0.5;
+                    p1 = {
+                        x: middleStart + Math.random() * middleWidth,
+                        y: margin + Math.random() * (config.height - margin * 2)
+                    };
+                    p2 = {
+                        x: middleStart + Math.random() * middleWidth,
+                        y: margin + Math.random() * (config.height - margin * 2)
+                    };
+                }
+
+                let overlapping = false;
+                for (const pair of existing) {
+                    const dists = [
+                        Math.hypot(p1.x - pair.p1.x, p1.y - pair.p1.y),
+                        Math.hypot(p1.x - pair.p2.x, p1.y - pair.p2.y),
+                        Math.hypot(p2.x - pair.p1.x, p2.y - pair.p1.y),
+                        Math.hypot(p2.x - pair.p2.x, p2.y - pair.p2.y)
+                    ];
+                    if (dists.some(d => d < buffer)) overlapping = true;
+                }
+                
+                if (Math.hypot(p1.x - p2.x, p1.y - p2.y) < buffer) overlapping = true;
+
+                if (!overlapping) return { p1, p2 };
+            }
+            
+            return { 
+                p1: { x: 300, y: 100 + existing.length * 50 }, 
+                p2: { x: 500, y: 400 - existing.length * 50 } 
+            };
+        }
+
+        function startGame(playerCount) {
+            state.players = playerCount;
+            setupGameConditions();
+            state.gameStarted = true;
+            state.paused = false;
+            state.gameOver = false;
+            const ptsVal = parseInt(gamePointsInput.value);
+            state.maxPoints = (isNaN(ptsVal) || ptsVal <= 0) ? null : ptsVal;
+            state.leftScore = 0;
+            state.rightScore = 0;
+            leftScoreDisplay.textContent = "0";
+            rightScoreDisplay.textContent = "0";
+            startMenu.classList.add('hidden');
+            scoreBoard.classList.remove('hidden');
+            controlsHint.classList.remove('hidden');
+            if (state.difficultyMode === "A") calculateAdaptiveDifficulty();
+            else applyAIDifficulty(parseInt(state.difficultyMode));
+            p2Hint.style.display = playerCount === 1 ? 'none' : 'block';
+            updateHints();
+        }
+
+        function quitToTitle() {
+            state.gameStarted = false;
+            state.paused = false;
+            state.gameOver = false;
+            state.leftScore = 0;
+            state.rightScore = 0;
+            leftScoreDisplay.textContent = "0";
+            rightScoreDisplay.textContent = "0";
+            pauseOverlay.classList.add('hidden');
+            winScreen.classList.add('hidden');
+            scoreBoard.classList.add('hidden');
+            scoreBoard.classList.remove('dozer-active', 'carnation-active');
+            controlsHint.classList.add('hidden');
+            startMenu.classList.remove('hidden');
+            resetBall('left');
+        }
+
+        function applyAIDifficulty(level) {
+            state.currentAIDifficulty = level;
+            config.aiSpeed = 2.5 + (level * 1.5); 
+            config.aiDeadzone = 12 - (level * 2); 
+            config.ballSpeedIncrement = 0.15 + (level * 0.05);
+        }
+
+        function updateDifficultyLabel(val) {
+            const displayVal = val == 6 ? "A" : val;
+            difficultyLabel.textContent = displayVal;
+            state.difficultyMode = displayVal;
+            if (displayVal !== "A") applyAIDifficulty(parseInt(displayVal));
+        }
+
+        function updateSpeedMultLabel(val) {
+            speedMultLabel.textContent = parseFloat(val).toFixed(1);
+            config.speedMultiplier = parseFloat(val);
+        }
+
+        function resetBall(winner) {
+            state.ballX = config.width / 2;
+            state.ballY = config.height / 2;
+            state.isFirstPitch = true; 
+            state.aiReactionTimer = 0; 
+            const speed = config.serveSpeed * config.speedMultiplier;
+            state.ballDX = winner === 'left' ? speed : -speed;
+            state.ballDY = (Math.random() > 0.5 ? 1 : -1) * (speed * 0.5);
+            ballInPortalCooldown = 0;
+            
+            ballStasis.active = false;
+            ballStasis.fraudType = null;
+            ballStasis.anomalyType = null;
+            ballStasis.activePair = null;
+            carnationState.active = false;
+            carnationState.cooldown = false;
+            scoreBoard.classList.remove('dozer-active', 'carnation-active');
+            
+            state.lastSide = 0;
+            if (modifiers.dozer) scheduleNextDozer();
+            activePortals.forEach(p => p.hitsSincePaddle = 0);
+        }
+
+        function checkCollision(paddleY, ballY, ballX, isLeft) {
+            const inYRange = ballY >= paddleY - 5 && ballY <= paddleY + config.paddleHeight + 5;
+            if (!inYRange) return false;
+
+            if (modifiers.shorterPaddles && modifiers.brokenPaddles) {
+                const isP2Computer = !isLeft && state.players === 1;
+                if (!isP2Computer) {
+                    const third = config.paddleHeight / 3;
+                    const inMiddleThird = ballY > paddleY + third && ballY < paddleY + third * 2;
+                    if (inMiddleThird) return false;
+                }
+            }
+
+            return true;
+        }
+
+        function update() {
+            if (!state.gameStarted || state.paused || state.gameOver) return;
+            
+            const prevP1Y = state.leftPaddleY;
+            const prevP2Y = state.rightPaddleY;
+
+            // Input handling
+            if (state.keys[keybinds.p1Up] && state.leftPaddleY > 0) state.leftPaddleY -= config.paddleSpeed;
+            if (state.keys[keybinds.p1Down] && state.leftPaddleY < config.height - config.paddleHeight) state.leftPaddleY += config.paddleSpeed;
+            
+            if (state.players === 2) {
+                if (state.keys[keybinds.p2Up] && state.rightPaddleY > 0) state.rightPaddleY -= config.paddleSpeed;
+                if (state.keys[keybinds.p2Down] && state.rightPaddleY < config.height - config.paddleHeight) state.rightPaddleY += config.paddleSpeed;
+            } else {
+                if (state.aiReactionTimer > 0) {
+                    const diff = ((config.height - config.paddleHeight) / 2) - state.rightPaddleY;
+                    if (Math.abs(diff) > config.aiDeadzone) state.rightPaddleY += Math.sign(diff) * config.aiReturnSpeed;
+                    state.aiReactionTimer--;
+                } else if (state.ballDX > 0 && !ballStasis.active) {
+                    const diff = state.ballY - (state.rightPaddleY + config.paddleHeight / 2);
+                    if (Math.abs(diff) > config.aiDeadzone) state.rightPaddleY += Math.sign(diff) * Math.min(Math.abs(diff), config.aiSpeed);
+                }
+                state.rightPaddleY = Math.max(0, Math.min(config.height - config.paddleHeight, state.rightPaddleY));
+            }
+
+            // Anomalies & Fraud Stasis Logic
+            if (ballStasis.active) {
+                ballStasis.timer -= 1000 / 60;
+                
+                if (ballStasis.timer <= 0) {
+                    if (ballStasis.anomalyType === 'dozer') {
+                        const movingP1 = Math.abs(state.leftPaddleY - prevP1Y) > 0.1;
+                        const movingP2 = Math.abs(state.rightPaddleY - prevP2Y) > 0.1;
+                        const pIsMoving = dozerState.targetPlayer === 'left' ? movingP1 : movingP2;
+
+                        if (pIsMoving) {
+                            if (dozerState.targetPlayer === 'left') {
+                                state.rightScore++; rightScoreDisplay.textContent = state.rightScore;
+                                checkWinCondition(); if (!state.gameOver) resetBall('right');
+                            } else {
+                                state.leftScore++; leftScoreDisplay.textContent = state.leftScore;
+                                checkWinCondition(); if (!state.gameOver) resetBall('left');
+                            }
+                            return;
+                        }
+
+                        state.ballDX *= -1; 
+                        ballStasis.anomalyType = null;
+                        scoreBoard.classList.remove('dozer-active');
+                        scheduleNextDozer();
+                    } else if (ballStasis.anomalyType === 'carnation') {
+                        const mult = modifiers.oPlatekMniej ? 3 : 2;
+                        state.ballDX = (ballStasis.savedDX > 0 ? 1 : -1) * (Math.abs(ballStasis.savedDX) * mult);
+                        state.ballDY = 0;
+                        ballStasis.anomalyType = null;
+                    } else if (ballStasis.fraudType === 'bounce') {
+                        state.ballDY *= -1;
+                        ballStasis.fraudType = null;
+                        playSound('wall');
+                    } else if (ballStasis.fraudType === 'wrap') {
+                        state.ballY = ballStasis.targetY;
+                        ballStasis.fraudType = null;
+                    } else {
+                        state.ballX = ballStasis.targetX;
+                        state.ballY = ballStasis.targetY;
+                        playSound('portalOut');
+                    }
+                    ballStasis.active = false;
+                    ballInPortalCooldown = 30; 
+                }
+                return;
+            }
+
+            // Half-line crosses logic for Carnation / Dozer
+            const currentSide = state.ballX < config.width / 2 ? -1 : 1;
+            if (state.lastSide !== 0 && currentSide !== state.lastSide) {
+                let triggeredCarnation = false;
+
+                if (modifiers.carnation && !carnationState.cooldown) {
+                    const chance = modifiers.speakNoEvil ? 0.10 : 0.05;
+                    if (Math.random() < chance && !ballStasis.active) {
+                        triggeredCarnation = true;
+                        carnationState.active = true;
+                        carnationState.cooldown = true;
+                        ballStasis.active = true;
+                        ballStasis.anomalyType = 'carnation';
+                        ballStasis.timer = 500; 
+                        ballStasis.savedDX = state.ballDX;
+                        ballStasis.savedDY = state.ballDY;
+                        state.ballDX = 0; state.ballDY = 0;
+                        scoreBoard.classList.add('carnation-active');
+                    }
+                } else if (carnationState.cooldown) {
+                    carnationState.cooldown = false;
+                    if (modifiers.sunflower && Math.random() < 0.5 && !ballStasis.active) {
+                        ballStasis.active = true;
+                        ballStasis.anomalyType = 'dozer';
+                        ballStasis.timer = modifiers.insomniac ? 500 : 1000;
+                        dozerState.targetPlayer = state.ballDX > 0 ? 'right' : 'left';
+                        scoreBoard.classList.add('dozer-active');
+                        triggeredCarnation = true;
+                    }
+                }
+
+                // Standard time-based Dozer trigger at midfield
+                if (!triggeredCarnation && modifiers.dozer && !carnationState.active && Date.now() > dozerState.nextTriggerTime && !state.isFirstPitch && !ballStasis.active) {
+                    ballStasis.active = true;
+                    ballStasis.anomalyType = 'dozer';
+                    ballStasis.timer = modifiers.insomniac ? 500 : 1000;
+                    dozerState.targetPlayer = state.ballDX > 0 ? 'right' : 'left';
+                    scoreBoard.classList.add('dozer-active');
+                }
+            }
+            state.lastSide = currentSide;
+
+            state.ballX += state.ballDX;
+            state.ballY += state.ballDY;
+
+            // Handle Top/Bottom Boundaries
+            if (modifiers.wraparound) {
+                if (state.ballY < 0 || state.ballY > config.height) {
+                    if (modifiers.fraud) {
+                        const roll = Math.random();
+                        if (roll < 0.5) state.ballY = state.ballY < 0 ? config.height : 0;
+                        else if (roll < 0.75) {
+                            ballStasis.active = true; ballStasis.timer = 500; ballStasis.fraudType = 'bounce';
+                            ballStasis.activePair = null;
+                            state.ballY = state.ballY < 0 ? 0 : config.height;
+                        } else {
+                            ballStasis.active = true; ballStasis.timer = 333; ballStasis.fraudType = 'wrap';
+                            ballStasis.targetY = state.ballY < 0 ? config.height : 0;
+                            ballStasis.activePair = null;
+                            state.ballY = state.ballY < 0 ? 0 : config.height;
+                        }
+                    } else if (modifiers.limbo) {
+                        ballStasis.active = true; 
+                        ballStasis.timer = 333; 
+                        ballStasis.fraudType = 'wrap';
+                        ballStasis.targetY = state.ballY < 0 ? config.height : 0;
+                        ballStasis.activePair = null;
+                        state.ballY = state.ballY < 0 ? 0 : config.height;
+                    } else {
+                        state.ballY = state.ballY < 0 ? config.height : 0;
+                    }
+                }
+            } else {
+                if (state.ballY - config.ballSize <= 0) { state.ballY = config.ballSize; state.ballDY *= -1; playSound('wall'); }
+                else if (state.ballY + config.ballSize >= config.height) { state.ballY = config.height - config.ballSize; state.ballDY *= -1; playSound('wall'); }
+            }
+
+            // Portal Logic (Suppressed by Carnation)
+            if (modifiers.portals && !carnationState.active) {
+                const now = Date.now();
+                if (ballInPortalCooldown > 0) {
+                    ballInPortalCooldown--;
+                } else {
+                    for (const pair of activePortals) {
+                        if (pair.overloadUntil > now) continue;
+
+                        const d1 = Math.hypot(state.ballX - pair.p1.x, state.ballY - pair.p1.y);
+                        const d2 = Math.hypot(state.ballX - pair.p2.x, state.ballY - pair.p2.y);
+                        
+                        let entrance = null, exit = null;
+
+                        if (d1 < currentPortalRadius) { entrance = pair.p1; exit = pair.p2; }
+                        else if (d2 < currentPortalRadius) { entrance = pair.p2; exit = pair.p1; }
+
+                        if (entrance) {
+                            ballStasis.active = true;
+                            ballStasis.timer = pair.stasisTime; 
+                            ballStasis.targetX = exit.x;
+                            ballStasis.targetY = exit.y;
+                            ballStasis.activePair = pair;
+                            state.ballX = entrance.x;
+                            state.ballY = entrance.y;
+                            playSound('portalIn');
+                            pair.hitsSincePaddle++;
+                            if (pair.hitsSincePaddle >= 2) {
+                                pair.overloadUntil = now + 5000; 
+                                pair.hitsSincePaddle = 0;
+                            }
+                            break; 
+                        }
+                    }
+                }
+            }
+
+            // Paddle and Scoring Logic
+            if (state.ballDX < 0 && state.ballX <= config.paddleWidth + config.ballSize) {
+                if (checkCollision(state.leftPaddleY, state.ballY, state.ballX, true)) {
+                    if (carnationState.active) {
+                        state.ballDX = ballStasis.savedDX;
+                        carnationState.active = false;
+                        scoreBoard.classList.remove('carnation-active');
+                    }
+                    handlePaddleHit(true);
+                    state.ballX = config.paddleWidth + config.ballSize;
+                    state.ballDY = (state.ballY - (state.leftPaddleY + config.paddleHeight / 2)) * 0.2 * config.speedMultiplier;
+                    activePortals.forEach(p => p.hitsSincePaddle = 0);
+                } else if (state.ballX < -config.ballSize) {
+                    state.rightScore++; rightScoreDisplay.textContent = state.rightScore;
+                    checkWinCondition(); if (!state.gameOver) resetBall('right');
+                }
+            } else if (state.ballDX > 0 && state.ballX >= config.width - config.paddleWidth - config.ballSize) {
+                if (checkCollision(state.rightPaddleY, state.ballY, state.ballX, false)) {
+                    if (carnationState.active) {
+                        state.ballDX = ballStasis.savedDX;
+                        carnationState.active = false;
+                        scoreBoard.classList.remove('carnation-active');
+                    }
+                    handlePaddleHit(false);
+                    state.ballX = config.width - config.paddleWidth - config.ballSize;
+                    state.ballDY = (state.ballY - (state.rightPaddleY + config.paddleHeight / 2)) * 0.2 * config.speedMultiplier;
+                    activePortals.forEach(p => p.hitsSincePaddle = 0);
+                } else if (state.ballX > config.width + config.ballSize) {
+                    state.leftScore++; leftScoreDisplay.textContent = state.leftScore;
+                    checkWinCondition(); if (!state.gameOver) resetBall('left');
+                }
+            }
+        }
+
+        function handlePaddleHit(isLeftPaddle) {
+            playSound('paddle');
+            if (state.isFirstPitch) {
+                state.ballDX = (isLeftPaddle ? 1 : -1) * config.minVolleySpeed * config.speedMultiplier;
+                state.isFirstPitch = false;
+            } else {
+                state.ballDX = (isLeftPaddle ? 1 : -1) * (Math.abs(state.ballDX) + (config.ballSpeedIncrement * config.speedMultiplier));
+            }
+            if (!isLeftPaddle && state.players === 1) state.aiReactionTimer = config.aiReactionFrames;
+        }
+
+        function drawPaddle(x, y, width, height, isRight) {
+            const theme = themes[config.theme];
+            const third = height / 3;
+            const shouldBeBroken = modifiers.shorterPaddles && modifiers.brokenPaddles && !(isRight && state.players === 1);
+
+            let paddleColor = theme.paddle;
+            if (config.theme === 'ultrakill') {
+                paddleColor = isRight ? theme.p2Paddle : theme.p1Paddle;
+            }
+
+            if (config.theme === 'pool') {
+                const cueWidth = width;
+                const taperWidth = width * 0.6;
+                const handleHeight = height * 0.3;
+                const tipHeight = 5;
+                
+                if (shouldBeBroken) {
+                    ctx.fillStyle = paddleColor;
+                    ctx.beginPath();
+                    ctx.moveTo(x + (cueWidth - taperWidth) / 2, y + tipHeight);
+                    ctx.lineTo(x + cueWidth - (cueWidth - taperWidth) / 2, y + tipHeight);
+                    ctx.lineTo(x + cueWidth * 0.8, y + third);
+                    ctx.lineTo(x + cueWidth * 0.2, y + third);
+                    ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(x + (cueWidth - taperWidth) / 2, y, taperWidth, tipHeight);
+
+                    ctx.fillStyle = paddleColor;
+                    ctx.beginPath();
+                    ctx.moveTo(x + cueWidth * 0.2, y + third * 2);
+                    ctx.lineTo(x + cueWidth * 0.8, y + third * 2);
+                    ctx.lineTo(x + cueWidth, y + height - handleHeight);
+                    ctx.lineTo(x, y + height - handleHeight);
+                    ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = '#111';
+                    ctx.fillRect(x, y + height - handleHeight, cueWidth, handleHeight);
+                } else {
+                    ctx.fillStyle = paddleColor;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y + height - handleHeight);
+                    ctx.lineTo(x + cueWidth, y + height - handleHeight);
+                    ctx.lineTo(x + cueWidth - (cueWidth - taperWidth) / 2, y + tipHeight);
+                    ctx.lineTo(x + (cueWidth - taperWidth) / 2, y + tipHeight);
+                    ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = '#111';
+                    ctx.fillRect(x, y + height - handleHeight, cueWidth, handleHeight);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(x + (cueWidth - taperWidth) / 2, y, taperWidth, tipHeight);
+                }
+            } else {
+                ctx.fillStyle = paddleColor;
+                if (shouldBeBroken) {
+                    ctx.fillRect(x, y, width, third);
+                    ctx.fillRect(x, y + third * 2, width, third);
+                } else {
+                    ctx.fillRect(x, y, width, height);
+                }
+            }
+        }
+
+        function drawPortal(x, y, theme, isOverloading) {
+            const now = Date.now();
+            const pColor = isOverloading ? '#ef4444' : theme.primary;
+            const sColor = isOverloading ? '#7f1d1d' : theme.secondary;
+            const swirlColor = isOverloading ? '#fecaca' : theme.swirl;
+
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, currentPortalRadius);
+            grad.addColorStop(0, pColor);
+            grad.addColorStop(0.6, sColor);
+            grad.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, currentPortalRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = swirlColor;
+            ctx.lineWidth = 2;
+            const rotation = (now / 200) % (Math.PI * 2);
+            ctx.beginPath();
+            ctx.arc(x, y, currentPortalRadius * 0.5, rotation, rotation + 1.5);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.arc(x, y, currentPortalRadius * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawBeam(pair) {
+            const now = Date.now();
+            const alpha = 0.5 + Math.sin(now / 50) * 0.3; 
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(pair.p1.x, pair.p1.y);
+            ctx.lineTo(pair.p2.x, pair.p2.y);
+            
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = pair.theme.primary;
+            ctx.strokeStyle = `rgba(${hexToRgb(pair.theme.swirl)}, ${alpha})`;
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#fff';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function hexToRgb(hex) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `${r}, ${g}, ${b}`;
+        }
+
+        function drawDozer(x, y) {
+            ctx.save();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(x, y, config.ballSize * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            const jitterX = (Math.random() - 0.5) * 2;
+            const jitterY = (Math.random() - 0.5) * 2;
+
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x - 3 + jitterX, y - 2 + jitterY, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + 3 + jitterX, y - 2 + jitterY, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + jitterX, y + jitterY, 5, 0.2, Math.PI - 0.2, false);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function draw() {
+            const theme = themes[config.theme];
+            const now = Date.now();
+            ctx.fillStyle = theme.bg; ctx.fillRect(0, 0, config.width, config.height);
+            ctx.setLineDash([10, 10]); ctx.strokeStyle = theme.line;
+            ctx.beginPath(); ctx.moveTo(config.width / 2, 0); ctx.lineTo(config.width / 2, config.height); ctx.stroke();
+            ctx.setLineDash([]); 
+
+            if (modifiers.portals && state.gameStarted && !state.gameOver && !carnationState.active) {
+                for (const pair of activePortals) {
+                    const isOverloading = pair.overloadUntil > now;
+                    if (!isOverloading) {
+                        if (ballStasis.active && ballStasis.activePair === pair) drawBeam(pair);
+                        drawPortal(pair.p1.x, pair.p1.y, pair.theme, false);
+                        drawPortal(pair.p2.x, pair.p2.y, pair.theme, false);
+                    }
+                }
+            }
+
+            drawPaddle(0, state.leftPaddleY, config.paddleWidth, config.paddleHeight, false);
+            drawPaddle(config.width - config.paddleWidth, state.rightPaddleY, config.paddleWidth, config.paddleHeight, true);
+            
+            if (ballStasis.active && ballStasis.anomalyType === 'dozer') {
+                drawDozer(state.ballX, state.ballY);
+            } else {
+                ctx.save();
+                ctx.globalAlpha = ballStasis.active ? 0.4 : 1.0;
+                
+                let drawX = state.ballX;
+                let drawY = state.ballY;
+                if (ballStasis.active && ballStasis.fraudType) {
+                    drawX += (Math.random() - 0.5) * 4;
+                    drawY += (Math.random() - 0.5) * 4;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = "#ff0000";
+                }
+
+                ctx.beginPath(); 
+                ctx.arc(drawX, drawY, config.ballSize, 0, Math.PI * 2); 
+                
+                if (carnationState.active || (ballStasis.active && ballStasis.anomalyType === 'carnation')) {
+                    ctx.fillStyle = "#f472b6";
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = "#f472b6";
+                } else {
+                    ctx.fillStyle = theme.ball;
+                }
+
+                ctx.fill();
+
+                if (config.theme === 'pool') {
+                    ctx.beginPath();
+                    ctx.arc(drawX, drawY, config.ballSize * 0.6, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff'; ctx.fill();
+                    ctx.fillStyle = '#000'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('8', drawX, drawY);
+                }
+                ctx.restore();
+            }
+        }
+
+        function startBinding(action) {
+            if (currentBindingAction) document.getElementById(`bind-${currentBindingAction}`).classList.remove('waiting');
+            currentBindingAction = action;
+            const btn = document.getElementById(`bind-${action}`);
+            btn.classList.add('waiting'); btn.textContent = "...";
+        }
+
+        function updateHints() {
+            const formatKey = (code) => code ? code.replace('Key', '').replace('Arrow', '') : "?";
+            document.getElementById('hint-p1Up').textContent = formatKey(keybinds.p1Up);
+            document.getElementById('hint-p1Down').textContent = formatKey(keybinds.p1Down);
+            document.getElementById('hint-p2Up').textContent = formatKey(keybinds.p2Up);
+            document.getElementById('hint-p2Down').textContent = formatKey(keybinds.p2Down);
+            document.getElementById('hint-pause').textContent = formatKey(keybinds.pause);
+        }
+
+        function checkWinCondition() {
+            if (state.maxPoints !== null && (state.leftScore >= state.maxPoints || state.rightScore >= state.maxPoints)) {
+                state.gameOver = true;
+                showWinScreen();
+            }
+        }
+
+        function showWinScreen() {
+            let winner = state.leftScore > state.rightScore ? "Player 1" : (state.players === 1 ? "Computer" : "Player 2");
+            winnerAnnouncement.textContent = `${winner} won!`;
+            finalScoreDisplay.textContent = `${state.leftScore} : ${state.rightScore}`;
+            winScreen.classList.remove('hidden');
+        }
+
+        function calculateAdaptiveDifficulty() {
+            if (state.difficultyMode === "A") {
+                let adaptiveLevel = Math.max(1, Math.min(5, (state.leftScore - state.rightScore)));
+                if (state.leftScore === state.rightScore) adaptiveLevel = 3;
+                applyAIDifficulty(adaptiveLevel);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (currentBindingAction) {
+                keybinds[currentBindingAction] = e.code;
+                const btn = document.getElementById(`bind-${currentBindingAction}`);
+                btn.textContent = e.code; btn.classList.remove('waiting');
+                currentBindingAction = null; e.preventDefault(); return;
+            }
+            state.keys[e.code] = true;
+            if (e.code === keybinds.pause && state.gameStarted && !state.gameOver) togglePause();
+        });
+        window.addEventListener('keyup', (e) => state.keys[e.code] = false);
+
+        function togglePause() {
+            if (!state.gameStarted || state.gameOver) return;
+            state.paused = !state.paused;
+            pauseOverlay.classList.toggle('hidden', !state.paused);
+        }
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        window.onload = loop;
+    </script>
+</body>
+</html>
